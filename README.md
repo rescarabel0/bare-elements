@@ -7,7 +7,9 @@ date picker.
 
 **[Live demo and docs (Storybook) →](https://rescarabel0.github.io/bare-elements/)**
 
-> **Status: early development.** The API may still change, and the package isn't on npm yet.
+[![npm](https://img.shields.io/npm/v/bare-elements)](https://www.npmjs.com/package/bare-elements)
+
+> **Status: early development (0.x).** The API may still change between minor versions.
 
 Most component libraries are either fully styled (and fight your design system) or tied to one
 framework. `bare-elements` ships framework-agnostic custom elements that own the **behavior**
@@ -40,6 +42,10 @@ entirely to you.
   React, Vue, Svelte, Angular or no framework at all. No dependencies besides Lit.
 
 ## Usage
+
+```sh
+npm install bare-elements
+```
 
 ```js
 import 'bare-elements'; // registers every element
