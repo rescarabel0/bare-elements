@@ -22,8 +22,9 @@ framework-specific. `bare-elements` ships framework-agnostic custom elements tha
 
 - **Accessible by default.** Every element follows the WAI-ARIA Authoring Practices and is tested
   with axe in a real browser.
-- **Headless.** Style through `::part()`, CSS custom properties and slots. A minimal neutral theme
-  is optional.
+- **Headless.** Elements render no markup of their own and live in the light DOM, so ARIA id
+  references (`aria-activedescendant`, `aria-controls`) just work and you style everything with
+  plain CSS, using state attributes such as `[open]`, `[active]` and `[selected]`.
 - **Framework-agnostic.** Plain custom elements, built with [Lit](https://lit.dev). Works in React,
   Vue, Svelte, Angular or no framework at all.
 - **Small.** No dependencies besides Lit.

@@ -1,1 +1,1 @@
-export { uniqueId } from './internal/id.js';
+export * from './combobox/index.js';
