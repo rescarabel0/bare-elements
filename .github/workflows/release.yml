@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch: # retry a failed release without re-tagging
 
 permissions:
   contents: read
@@ -21,6 +22,9 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
-      - run: pnpm publish --access public --provenance --no-git-checks
+      - run: pnpm build
+      # Published with npm, which reads the token setup-node writes to .npmrc. (pnpm 11 tried
+      # OIDC instead and the registry answered 404, its way of saying "not authenticated".)
+      - run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
