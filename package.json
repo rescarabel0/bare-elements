@@ -1,0 +1,73 @@
+{
+  "name": "bare-elements",
+  "version": "0.0.0",
+  "description": "Headless, accessible Web Components for the hard parts of UI: combobox, date picker, data table.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Rafael Escarabelo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rescarabel0/bare-elements.git"
+  },
+  "homepage": "https://rescarabel0.github.io/bare-elements/",
+  "bugs": "https://github.com/rescarabel0/bare-elements/issues",
+  "keywords": [
+    "web-components",
+    "custom-elements",
+    "lit",
+    "headless",
+    "accessibility",
+    "a11y",
+    "combobox",
+    "datepicker",
+    "data-table"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.0.8",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "wtr",
+    "test:watch": "wtr --watch",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@open-wc/testing": "^5.0.0",
+    "@storybook/addon-a11y": "^10.6.7",
+    "@storybook/addon-docs": "^10.6.7",
+    "@storybook/web-components-vite": "^10.6.7",
+    "@types/mocha": "^10.0.10",
+    "@web/dev-server-esbuild": "^2.0.1",
+    "@web/test-runner": "^1.0.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-lit": "^2.3.1",
+    "eslint-plugin-wc": "^3.1.0",
+    "prettier": "^3.9.10",
+    "storybook": "^10.6.7",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.7"
+  }
+}
