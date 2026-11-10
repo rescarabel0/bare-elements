@@ -7,5 +7,10 @@ if (!customElements.get('bare-date-picker')) {
 }
 
 export { BareCalendar, BareDatePicker };
-export type { BareCalendarChangeDetail, CalendarMarker, CalendarMarkers } from './bare-calendar.js';
-export type { BareDatePickerChangeDetail } from './bare-date-picker.js';
+export type {
+  BareCalendarChangeDetail,
+  CalendarMarker,
+  CalendarMarkers,
+  CalendarSelection,
+} from './bare-calendar.js';
+export type { BareDatePickerChangeDetail, DatePickerSelection } from './bare-date-picker.js';

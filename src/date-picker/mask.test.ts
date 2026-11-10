@@ -96,3 +96,47 @@ describe('date input mask', () => {
     expect(el.value).to.equal('2026-11-10');
   });
 });
+
+describe('date range input mask', () => {
+  async function setupRange(lang = 'pt-BR') {
+    const wrapper = await fixture<HTMLElement>(
+      html`<div lang=${lang}>
+        <bare-date-picker selection="range">
+          <input aria-label="Period" />
+          <button type="button" data-toggle aria-label="Choose dates">📅</button>
+          <div data-popup aria-label="Choose dates"><bare-calendar></bare-calendar></div>
+        </bare-date-picker>
+      </div>`,
+    );
+    const el = wrapper.querySelector<BareDatePicker>('bare-date-picker')!;
+    const input = el.querySelector('input')!;
+    await el.updateComplete;
+    input.focus();
+    return { el, input };
+  }
+
+  it('uses a range placeholder', async () => {
+    const { input } = await setupRange();
+    expect(input.placeholder).to.equal('DD/MM/YYYY – DD/MM/YYYY');
+  });
+
+  it('inserts the range separator after the first date', async () => {
+    const { input } = await setupRange();
+    await sendKeys({ type: '02112026' });
+    expect(input.value).to.equal('02/11/2026 – ');
+    await sendKeys({ type: '05112026' });
+    expect(input.value).to.equal('02/11/2026 – 05/11/2026');
+    await sendKeys({ type: '9' });
+    expect(input.value).to.equal('02/11/2026 – 05/11/2026');
+  });
+
+  it('backspace goes back through the range separator', async () => {
+    const { input } = await setupRange();
+    await sendKeys({ type: '021120260' });
+    expect(input.value).to.equal('02/11/2026 – 0');
+    await sendKeys({ press: 'Backspace' });
+    expect(input.value).to.equal('02/11/2026');
+    await sendKeys({ press: 'Backspace' });
+    expect(input.value).to.equal('02/11/202');
+  });
+});

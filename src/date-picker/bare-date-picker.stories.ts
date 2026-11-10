@@ -642,6 +642,73 @@ export const RangeInAForm: Story = {
   },
 };
 
+/**
+ * `selection="range"` on the picker: type both dates (the " – " is inserted for you) or pick
+ * them in the calendar, which closes once the range is complete.
+ */
+export const DateRangePicker: Story = {
+  render: () =>
+    frame(html`
+      <label for="period">Report period</label>
+      <bare-date-picker selection="range" class="range" @bare-change=${logRange}>
+        <input id="period" />
+        <button type="button" data-toggle aria-label="Choose dates">${calendarIcon}</button>
+        <div data-popup aria-label="Choose dates">
+          <bare-calendar>${icons}</bare-calendar>
+        </div>
+      </bare-date-picker>
+      <span class="error">Enter a valid range (MM/DD/YYYY – MM/DD/YYYY).</span>
+      <output>start: "", end: ""</output>
+    `),
+};
+
+export const DateRangePickerInAForm: Story = {
+  render: () => {
+    const submit = (e: SubmitEvent) => {
+      e.preventDefault();
+      const form = e.currentTarget as HTMLFormElement;
+      const output = form.querySelector('output');
+      if (output) output.textContent = JSON.stringify(Object.fromEntries(new FormData(form)));
+    };
+    const today = todayISODate();
+    return frame(
+      html`
+        <form class="demo" @submit=${submit}>
+          <label for="stay">Estadia (obrigatório)</label>
+          <bare-date-picker
+            name="stay"
+            selection="range"
+            required
+            class="range"
+            min=${today}
+            start=${addDays(today, 7)}
+            end=${addDays(today, 10)}
+          >
+            <input id="stay" />
+            <button type="button" data-toggle aria-label="Escolher datas">${calendarIcon}</button>
+            <div data-popup aria-label="Escolher datas">
+              <bare-calendar
+                prev-label="Mês anterior"
+                next-label="Próximo mês"
+                month-label="Mês"
+                year-label="Ano"
+                >${icons}</bare-calendar
+              >
+            </div>
+          </bare-date-picker>
+          <span class="error">Digite um intervalo válido (DD/MM/AAAA – DD/MM/AAAA).</span>
+          <div>
+            <button type="submit">Enviar</button>
+            <button type="reset">Limpar</button>
+          </div>
+          <output>Envie para ver os dados do formulário</output>
+        </form>
+      `,
+      'pt-BR',
+    );
+  },
+};
+
 /** The grid on its own, for inline calendars. */
 export const CalendarOnly: Story = {
   render: () =>

@@ -4,9 +4,15 @@ import { NumericDateFormat, isISODate, maskDateInput } from '../internal/date.js
 import type { BareCalendar, BareCalendarChangeDetail, CalendarMarkers } from './bare-calendar.js';
 
 export interface BareDatePickerChangeDetail {
-  /** The new date as `YYYY-MM-DD`, or `''` when cleared or invalid. */
+  /** The new date as `YYYY-MM-DD`, or `''` when cleared, invalid, or in range mode. */
   value: string;
+  /** Range mode: first day, `YYYY-MM-DD`, or `''`. */
+  start: string;
+  /** Range mode: last day, `YYYY-MM-DD`, or `''`. */
+  end: string;
 }
+
+export type DatePickerSelection = 'single' | 'range';
 
 /**
  * A date field with a calendar popup, following the WAI-ARIA "Date Picker Dialog" pattern.
@@ -27,12 +33,19 @@ export interface BareDatePickerChangeDetail {
  * The input accepts typed dates in the locale's numeric format (e.g. `10/11/2026` in pt-BR) and
  * shows the chosen date the same way. The value is always ISO `YYYY-MM-DD`.
  *
+ * With `selection="range"` the field holds two dates (`02/11/2026 – 05/11/2026`), the calendar
+ * picks a range and closes once it's complete, and the form gets an ISO 8601 interval
+ * (`2026-11-02/2026-11-05`). Typed ends in the wrong order are swapped.
+ *
  * @attr name - Name used when submitted with a form.
- * @attr value - Chosen date, `YYYY-MM-DD`.
+ * @attr selection - `single` (default) or `range`.
+ * @attr value - Chosen date, `YYYY-MM-DD` (single selection).
+ * @attr start - First day of the chosen range, `YYYY-MM-DD` (range mode).
+ * @attr end - Last day of the chosen range, `YYYY-MM-DD` (range mode).
  * @attr min - Earliest allowed date, `YYYY-MM-DD`.
  * @attr max - Latest allowed date, `YYYY-MM-DD`.
  * @attr locale - BCP 47 locale. Defaults to the page's `lang`.
- * @attr required - The form is invalid without a date.
+ * @attr required - The form is invalid without a date (or a complete range).
  * @attr open - Reflected while the popup is shown.
  * @attr invalid - Reflected while the typed text is not an allowed date.
  *
@@ -43,6 +56,9 @@ export class BareDatePicker extends ReactiveElement {
 
   static override properties = {
     value: { type: String },
+    selection: { type: String },
+    start: { type: String },
+    end: { type: String },
     min: { type: String },
     max: { type: String },
     locale: { type: String },
@@ -53,6 +69,9 @@ export class BareDatePicker extends ReactiveElement {
   };
 
   declare value: string;
+  declare selection: DatePickerSelection;
+  declare start: string;
+  declare end: string;
   declare min: string;
   declare max: string;
   declare locale: string;
@@ -93,10 +112,15 @@ export class BareDatePicker extends ReactiveElement {
   #popup: HTMLElement | null = null;
   #calendar: BareCalendar | null = null;
   #listeners: AbortController | null = null;
+  /** The placeholder is ours (the author set none), so it follows the selection mode. */
+  #ownsPlaceholder = false;
 
   constructor() {
     super();
     this.value = '';
+    this.selection = 'single';
+    this.start = '';
+    this.end = '';
     this.min = '';
     this.max = '';
     this.locale = '';
@@ -109,9 +133,9 @@ export class BareDatePicker extends ReactiveElement {
     this.addEventListener('keydown', (e) => this.#onKeydown(e));
   }
 
-  /** The numeric format used for the input, e.g. `DD/MM/YYYY`. Useful as a placeholder. */
+  /** The input's format, e.g. `DD/MM/YYYY` (or `DD/MM/YYYY – DD/MM/YYYY` for ranges). */
   get formatPattern(): string {
-    return this.#format.pattern;
+    return this.#range ? this.#format.rangePattern : this.#format.pattern;
   }
 
   get form(): HTMLFormElement | null {
@@ -153,20 +177,43 @@ export class BareDatePicker extends ReactiveElement {
 
   protected override updated(changed: PropertyValues<this>) {
     if (changed.has('open')) this.#syncOpen();
-    if (changed.has('value') || changed.has('locale')) this.#writeInput();
-    if (changed.has('value') || changed.has('min') || changed.has('max')) this.#syncCalendar();
-    if (changed.has('locale')) this.#syncCalendar();
+    const selectionChanged =
+      changed.has('value') ||
+      changed.has('start') ||
+      changed.has('end') ||
+      changed.has('selection');
+    if (selectionChanged || changed.has('locale')) this.#writeInput();
+    if (selectionChanged || changed.has('min') || changed.has('max') || changed.has('locale')) {
+      this.#syncCalendar();
+    }
     this.#syncForm();
   }
 
   formResetCallback() {
     this.value = '';
+    this.start = '';
+    this.end = '';
     this.invalid = false;
     if (this.#input) this.#input.value = '';
   }
 
   formStateRestoreCallback(state: string | null) {
-    this.value = isISODate(state) ? state : '';
+    const [start = '', end = ''] = (state ?? '').split('/');
+    if (this.#range) {
+      this.start = isISODate(start) ? start : '';
+      this.end = isISODate(end) ? end : '';
+    } else {
+      this.value = isISODate(state) ? state : '';
+    }
+  }
+
+  get #range(): boolean {
+    return this.selection === 'range';
+  }
+
+  /** Whether something (a date, or a complete range) is chosen. */
+  get #hasSelection(): boolean {
+    return this.#range ? isISODate(this.start) && isISODate(this.end) : isISODate(this.value);
   }
 
   // --- Wiring -------------------------------------------------------------------------------
@@ -201,7 +248,10 @@ export class BareDatePicker extends ReactiveElement {
     if (input) {
       input.setAttribute('autocomplete', 'off');
       if (!input.hasAttribute('inputmode')) input.inputMode = 'numeric';
-      if (!input.placeholder) input.placeholder = this.formatPattern;
+      if (!input.placeholder) {
+        input.placeholder = this.formatPattern;
+        this.#ownsPlaceholder = true;
+      }
       let previous = input.value;
       input.addEventListener('beforeinput', () => (previous = input.value), { signal });
       input.addEventListener(
@@ -215,6 +265,7 @@ export class BareDatePicker extends ReactiveElement {
             input.selectionStart ?? input.value.length,
             e.inputType,
             e.data,
+            this.#range ? 2 : 1,
           );
           if (masked.value !== input.value) input.value = masked.value;
           input.setSelectionRange(masked.caret, masked.caret);
@@ -245,7 +296,9 @@ export class BareDatePicker extends ReactiveElement {
       'bare-change',
       (e) => {
         e.stopPropagation(); // re-dispatched from the picker below
-        this.#pick((e as Event as CustomEvent<BareCalendarChangeDetail>).detail.value);
+        const { value, start, end } = (e as Event as CustomEvent<BareCalendarChangeDetail>).detail;
+        if (this.#range) this.#pickRange(start, end);
+        else this.#pick(value);
       },
       { signal },
     );
@@ -264,7 +317,11 @@ export class BareDatePicker extends ReactiveElement {
   #syncCalendar() {
     const calendar = this.#calendar;
     if (!calendar) return;
+    if (this.#input && this.#ownsPlaceholder) this.#input.placeholder = this.formatPattern;
+    calendar.selection = this.#range ? 'range' : 'single';
     calendar.value = this.value;
+    calendar.start = this.start;
+    calendar.end = this.end;
     calendar.min = this.min;
     calendar.max = this.max;
     if (this.locale) calendar.locale = this.locale;
@@ -274,6 +331,15 @@ export class BareDatePicker extends ReactiveElement {
 
   #writeInput() {
     if (!this.#input) return;
+    if (this.#range) {
+      const typed = this.#format.parseRange(this.#input.value);
+      if (this.#hasSelection && (typed?.[0] !== this.start || typed[1] !== this.end)) {
+        this.#input.value = this.#format.formatRange(this.start, this.end);
+      } else if (!this.start && !this.end && !this.invalid && typed) {
+        this.#input.value = '';
+      }
+      return;
+    }
     // Only rewrite when the value says something different from what's typed, so a partially
     // typed or invalid entry isn't wiped by unrelated updates.
     const typed = this.#format.parse(this.#input.value);
@@ -285,16 +351,24 @@ export class BareDatePicker extends ReactiveElement {
   }
 
   #syncForm() {
-    this.#internals.setFormValue(this.value || null);
+    const range = this.#range;
+    const formValue = range ? `${this.start}/${this.end}` : this.value;
+    this.#internals.setFormValue(this.#hasSelection ? formValue : null);
     const anchor = this.#input ?? undefined;
     if (this.invalid) {
       this.#internals.setValidity(
         { badInput: true },
-        `Enter a valid date (${this.formatPattern}).`,
+        range
+          ? `Enter a valid date range (${this.formatPattern}).`
+          : `Enter a valid date (${this.formatPattern}).`,
         anchor,
       );
-    } else if (this.required && !this.value) {
-      this.#internals.setValidity({ valueMissing: true }, 'Choose a date.', anchor);
+    } else if (this.required && !this.#hasSelection) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        range ? 'Choose a date range.' : 'Choose a date.',
+        anchor,
+      );
     } else {
       this.#internals.setValidity({});
     }
@@ -321,9 +395,15 @@ export class BareDatePicker extends ReactiveElement {
     this.open = true;
     const calendar = this.#calendar;
     if (!calendar) return;
+    // Drop a half-picked range left over from the last time the popup closed.
+    this.#syncCalendar();
     // Start on what's typed if it's a date, else the value, else today.
-    const typed = this.#input ? this.#format.parse(this.#input.value) : null;
-    const start = typed ?? (isISODate(this.value) ? this.value : null);
+    const text = this.#input?.value ?? '';
+    const typed = this.#range
+      ? (this.#format.parseRange(text)?.[0] ?? null)
+      : this.#format.parse(text);
+    const chosen = this.#range ? this.start : this.value;
+    const start = typed ?? (isISODate(chosen) ? chosen : null);
     if (start) calendar.focusedDate = start;
     void this.updateComplete.then(() => calendar.focus());
   }
@@ -339,9 +419,19 @@ export class BareDatePicker extends ReactiveElement {
     this.#close(this.#input);
   }
 
+  #pickRange(start: string, end: string) {
+    this.invalid = false;
+    this.#setRange(start, end);
+    this.#close(this.#input);
+  }
+
   /** Parses the typed text when the input commits (blur or Enter). */
   #commitInput() {
     const text = this.#input?.value.trim() ?? '';
+    if (this.#range) {
+      this.#commitRange(text);
+      return;
+    }
     if (text === '') {
       this.invalid = false;
       this.#setValue('');
@@ -358,12 +448,45 @@ export class BareDatePicker extends ReactiveElement {
     }
   }
 
+  #commitRange(text: string) {
+    if (text === '') {
+      this.invalid = false;
+      this.#setRange('', '');
+      return;
+    }
+    const range = this.#format.parseRange(text);
+    if (range && this.#isAllowed(range[0]) && this.#isAllowed(range[1])) {
+      this.invalid = false;
+      this.#setRange(range[0], range[1]);
+      if (this.#input) this.#input.value = this.#format.formatRange(range[0], range[1]);
+    } else {
+      this.invalid = true;
+      this.#setRange('', '');
+    }
+  }
+
   #setValue(value: string) {
     if (value === this.value) return;
     this.value = value;
+    this.#emitChange();
+  }
+
+  #setRange(start: string, end: string) {
+    if (start === this.start && end === this.end) return;
+    this.start = start;
+    this.end = end;
+    this.#emitChange();
+  }
+
+  #emitChange() {
+    const range = this.#range;
     this.dispatchEvent(
       new CustomEvent<BareDatePickerChangeDetail>('bare-change', {
-        detail: { value },
+        detail: {
+          value: range ? '' : this.value,
+          start: range ? this.start : '',
+          end: range ? this.end : '',
+        },
         bubbles: true,
         composed: true,
       }),

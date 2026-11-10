@@ -120,6 +120,10 @@ chevron next to the label. Keyboard support includes typeahead: typing "me" jump
   and day names, and the first day of the week.
 - **Popup:** opens from the toggle or with Alt+↓. Escape closes it and returns focus. Focus
   leaving the picker closes it too.
+- **Ranges:** `selection="range"` turns it into a date range picker. The field holds both dates
+  (`11/02/2026 – 11/05/2026`, separator inserted for you), the calendar closes once the range is
+  complete, ends typed in the wrong order are swapped, and the form gets an ISO 8601 interval
+  (`2026-11-02/2026-11-05`). Use `start` and `end` instead of `value`.
 
 ### Calendar
 

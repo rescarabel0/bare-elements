@@ -319,3 +319,118 @@ describe('bare-calendar keyboard', () => {
     expect((tabbable[0] as HTMLElement).dataset['date']).to.equal('2026-11-10');
   });
 });
+
+describe('bare-date-picker range', () => {
+  async function setupRange(attrs: { start?: string; end?: string; required?: boolean } = {}) {
+    const wrapper = await fixture<HTMLElement>(
+      html`<form lang="en-US" @submit=${(e: Event) => e.preventDefault()}>
+        <bare-date-picker
+          name="period"
+          selection="range"
+          start=${attrs.start ?? ''}
+          end=${attrs.end ?? ''}
+          min="2026-01-01"
+          max="2027-12-31"
+          ?required=${attrs.required ?? false}
+        >
+          <input aria-label="Period" />
+          <button type="button" data-toggle aria-label="Choose dates">📅</button>
+          <div data-popup aria-label="Choose dates"><bare-calendar></bare-calendar></div>
+        </bare-date-picker>
+      </form>`,
+    );
+    const form = wrapper as unknown as HTMLFormElement;
+    const el = form.querySelector<BareDatePicker>('bare-date-picker')!;
+    await el.updateComplete;
+    await settle();
+    const input = el.querySelector('input')!;
+    const toggle = el.querySelector<HTMLButtonElement>('[data-toggle]')!;
+    const calendar = el.querySelector<BareCalendar>('bare-calendar')!;
+    const day = (iso: string) =>
+      calendar.querySelector<HTMLButtonElement>(`[data-part="day"][data-date="${iso}"]`)!;
+    return { form, el, input, toggle, calendar, day };
+  }
+
+  it('shows an initial range and submits it as an ISO interval', async () => {
+    const { form, input, calendar } = await setupRange({ start: '2026-11-02', end: '2026-11-05' });
+    expect(input.value).to.equal('11/02/2026 – 11/05/2026');
+    expect(new FormData(form).get('period')).to.equal('2026-11-02/2026-11-05');
+    expect(calendar.selection).to.equal('range');
+    expect([calendar.start, calendar.end]).to.deep.equal(['2026-11-02', '2026-11-05']);
+  });
+
+  it('picks a range in the popup and closes only once it is complete', async () => {
+    const ctx = await setupRange({ start: '2026-11-02', end: '2026-11-05' });
+    ctx.toggle.click();
+    await ctx.el.updateComplete;
+    await ctx.calendar.updateComplete;
+    ctx.day('2026-11-10').click();
+    await ctx.calendar.updateComplete;
+    expect(ctx.el.open).to.be.true; // still picking the end
+
+    setTimeout(() => ctx.day('2026-11-14').click());
+    const event = (await oneEvent(ctx.el, 'bare-change')) as CustomEvent<{
+      start: string;
+      end: string;
+    }>;
+    await ctx.el.updateComplete;
+    expect([event.detail.start, event.detail.end]).to.deep.equal(['2026-11-10', '2026-11-14']);
+    expect(ctx.el.open).to.be.false;
+    expect(ctx.input.value).to.equal('11/10/2026 – 11/14/2026');
+    expect(document.activeElement).to.equal(ctx.input);
+  });
+
+  it('drops a half-picked range when reopened', async () => {
+    const ctx = await setupRange({ start: '2026-11-02', end: '2026-11-05' });
+    ctx.toggle.click();
+    await ctx.calendar.updateComplete;
+    ctx.day('2026-11-10').click(); // start a new range, then leave
+    ctx.el.open = false;
+    await ctx.el.updateComplete;
+    ctx.toggle.click();
+    await ctx.el.updateComplete;
+    await ctx.calendar.updateComplete;
+    expect([ctx.calendar.start, ctx.calendar.end]).to.deep.equal(['2026-11-02', '2026-11-05']);
+  });
+
+  it('commits a typed range, swapping ends typed in the wrong order', async () => {
+    const { el, input } = await setupRange();
+    input.focus();
+    await sendKeys({ type: '1120202611102026' });
+    expect(input.value).to.equal('11/20/2026 – 11/10/2026');
+    await sendKeys({ press: 'Enter' });
+    await el.updateComplete;
+    expect([el.start, el.end]).to.deep.equal(['2026-11-10', '2026-11-20']);
+    expect(input.value).to.equal('11/10/2026 – 11/20/2026');
+  });
+
+  it('marks incomplete or out-of-range ranges invalid', async () => {
+    const { el, input } = await setupRange();
+    input.focus();
+    await sendKeys({ type: '11102026' });
+    await sendKeys({ press: 'Enter' });
+    await el.updateComplete;
+    expect(el.invalid).to.be.true;
+    expect(el.validity.badInput).to.be.true;
+
+    input.select();
+    await sendKeys({ type: '1110202601012030' }); // end after max
+    await sendKeys({ press: 'Enter' });
+    await el.updateComplete;
+    expect(el.invalid).to.be.true;
+  });
+
+  it('requires a complete range and resets', async () => {
+    const { form, el, input } = await setupRange({ required: true });
+    expect(form.checkValidity()).to.be.false;
+    expect(el.validity.valueMissing).to.be.true;
+    el.start = '2026-03-01';
+    el.end = '2026-03-08';
+    await el.updateComplete;
+    expect(form.checkValidity()).to.be.true;
+    form.reset();
+    await el.updateComplete;
+    expect([el.start, el.end]).to.deep.equal(['', '']);
+    expect(input.value).to.equal('');
+  });
+});

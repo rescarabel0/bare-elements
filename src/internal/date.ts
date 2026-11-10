@@ -132,7 +132,10 @@ export function firstDayOfWeek(locale: string): number {
  * `11/10/2026` in en-US. Uses the locale's own field order so typed dates round-trip.
  */
 const FIELD_LENGTH = { day: 2, month: 2, year: 4 } as const;
-const MAX_DIGITS = 8;
+const DIGITS_PER_DATE = 8;
+
+/** Between the two dates of a range in a text field: `02/11/2026 – 05/11/2026`. */
+export const RANGE_SEPARATOR = ' – ';
 
 export class NumericDateFormat {
   readonly #format: Intl.DateTimeFormat;
@@ -173,23 +176,38 @@ export class NumericDateFormat {
     return separators;
   }
 
+  /** The fields of `count` consecutive dates, e.g. day, month, year, day, month, year. */
+  fields(count = 1): ('day' | 'month' | 'year')[] {
+    return Array.from({ length: count }, () => this.order).flat();
+  }
+
   /**
-   * Lays out up to 8 digits in the locale's fields, e.g. `1011202` -> `10/11/202`. With
-   * `trailing`, a separator follows a just-completed field so the next digit lands after it.
+   * Lays out digits in the locale's fields, e.g. `1011202` -> `10/11/202`. With `count: 2`, a
+   * range: `1011202615` -> `10/11/2026 – 15`. With `trailing`, a separator follows a
+   * just-completed field so the next digit lands after it.
    */
-  mask(digits: string, trailing = false): string {
+  mask(digits: string, trailing = false, count = 1): string {
     const separators = this.separators;
+    const fields = this.fields(count);
+    const perDate = this.order.length;
     let out = '';
     let rest = digits.replace(/\D/g, '');
-    for (const [i, field] of this.order.entries()) {
+    for (const [i, field] of fields.entries()) {
       const length = FIELD_LENGTH[field];
       const chunk = rest.slice(0, length);
       rest = rest.slice(length);
       out += chunk;
-      if (chunk.length < length || i === this.order.length - 1) break;
-      if (rest.length > 0 || trailing) out += separators[i] ?? '';
+      if (chunk.length < length || i === fields.length - 1) break;
+      if (rest.length > 0 || trailing) {
+        out += (i + 1) % perDate === 0 ? RANGE_SEPARATOR : (separators[i % perDate] ?? '');
+      }
     }
     return out;
+  }
+
+  /** A hint like `DD/MM/YYYY – DD/MM/YYYY`. */
+  get rangePattern(): string {
+    return `${this.pattern}${RANGE_SEPARATOR}${this.pattern}`;
   }
 
   /** A hint like `DD/MM/YYYY`, built from the locale's real separators. */
@@ -211,7 +229,24 @@ export class NumericDateFormat {
    */
   parse(text: string): string | null {
     const groups = text.trim().match(/\d+/g);
-    if (!groups || groups.length !== 3) return null;
+    return groups && groups.length === 3 ? this.#fromGroups(groups) : null;
+  }
+
+  /** Parses a typed range (`02/11/2026 – 05/11/2026`) into ISO dates, ends in any order. */
+  parseRange(text: string): [string, string] | null {
+    const groups = text.trim().match(/\d+/g);
+    if (!groups || groups.length !== 6) return null;
+    const a = this.#fromGroups(groups.slice(0, 3));
+    const b = this.#fromGroups(groups.slice(3));
+    if (!a || !b) return null;
+    return a <= b ? [a, b] : [b, a];
+  }
+
+  formatRange(start: string, end: string): string {
+    return `${this.format(start)}${RANGE_SEPARATOR}${this.format(end)}`;
+  }
+
+  #fromGroups(groups: string[]): string | null {
     const parts: Partial<DateParts> = {};
     this.order.forEach((field, i) => {
       const raw = groups[i] ?? '';
@@ -238,6 +273,8 @@ export interface MaskedInput {
 
 const countDigits = (text: string) => text.replace(/\D/g, '').length;
 
+const ISO_INTERVAL = /^(\d{4}-\d{2}-\d{2})\s*(?:\/|–|—|\.\.)\s*(\d{4}-\d{2}-\d{2})$/;
+
 /**
  * Auto-formats a date input as the user types, inserting the locale's separators.
  *
@@ -246,6 +283,7 @@ const countDigits = (text: string) => text.replace(/\D/g, '').length;
  * @param caret - The caret position in `current`.
  * @param inputType - `InputEvent.inputType` of the edit.
  * @param data - `InputEvent.data` of the edit.
+ * @param count - 1 for a date, 2 for a range.
  */
 export function maskDateInput(
   format: NumericDateFormat,
@@ -254,14 +292,19 @@ export function maskDateInput(
   caret: number,
   inputType: string,
   data: string | null,
+  count = 1,
 ): MaskedInput {
-  // A pasted or dropped ISO date (e.g. from a spreadsheet) is unambiguous: take it as is.
+  // A pasted or dropped ISO date or interval (e.g. from a spreadsheet) is unambiguous.
   if (inputType === 'insertFromPaste' || inputType === 'insertFromDrop') {
-    const iso = current.trim();
-    if (isISODate(iso)) {
-      const value = format.format(iso);
-      return { value, caret: value.length };
+    const text = current.trim();
+    const interval = ISO_INTERVAL.exec(text);
+    let value: string | null = null;
+    if (count === 1 && isISODate(text)) value = format.format(text);
+    if (count === 2 && interval && isISODate(interval[1]) && isISODate(interval[2])) {
+      const [a, b] = [interval[1], interval[2]].sort() as [string, string];
+      value = format.formatRange(a, b);
     }
+    if (value !== null) return { value, caret: value.length };
   }
 
   const deleting = inputType.startsWith('delete');
@@ -282,7 +325,7 @@ export function maskDateInput(
   // Typing a separator early ("1/") completes the field with a leading zero ("01/").
   if (inputType === 'insertText' && data && /\D/.test(data) && caret === current.length) {
     let offset = 0;
-    for (const field of format.order) {
+    for (const field of format.fields(count)) {
       const length = FIELD_LENGTH[field];
       const filled = Math.min(Math.max(digits.length - offset, 0), length);
       if (filled < length) {
@@ -297,10 +340,10 @@ export function maskDateInput(
     }
   }
 
-  digits = digits.slice(0, MAX_DIGITS);
+  digits = digits.slice(0, DIGITS_PER_DATE * count);
   before = Math.min(before, digits.length);
   const atEnd = before === digits.length;
-  const value = format.mask(digits, !deleting && atEnd);
+  const value = format.mask(digits, !deleting && atEnd, count);
 
   if (atEnd) return { value, caret: value.length };
   let seen = 0;
