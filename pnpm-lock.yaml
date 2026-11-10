@@ -36,6 +36,9 @@ importers:
       '@web/test-runner':
         specifier: ^1.0.1
         version: 1.0.1
+      '@web/test-runner-commands':
+        specifier: ^1.0.1
+        version: 1.0.1
       eslint:
         specifier: ^10.14.0
         version: 10.14.0

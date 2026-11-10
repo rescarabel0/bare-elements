@@ -32,7 +32,10 @@
   "files": [
     "dist"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/combobox/index.js"
+  ],
   "engines": {
     "node": ">=22"
   },
@@ -61,6 +64,7 @@
     "@types/mocha": "^10.0.10",
     "@web/dev-server-esbuild": "^2.0.1",
     "@web/test-runner": "^1.0.1",
+    "@web/test-runner-commands": "^1.0.1",
     "eslint": "^10.14.0",
     "eslint-plugin-lit": "^2.3.1",
     "eslint-plugin-wc": "^3.1.0",
