@@ -36,7 +36,8 @@
     "./dist/index.js",
     "./dist/listbox/index.js",
     "./dist/combobox/index.js",
-    "./dist/select/index.js"
+    "./dist/select/index.js",
+    "./dist/date-picker/index.js"
   ],
   "engines": {
     "node": ">=22"
