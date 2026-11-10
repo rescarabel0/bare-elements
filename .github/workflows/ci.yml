@@ -1,9 +1,13 @@
 name: CI
 
+# Skip runs for changes that can't affect the build. Not ignored on purpose: docs/*.mdx, which
+# are Storybook pages, and the workflow files themselves.
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', LICENSE, .editorconfig]
   pull_request:
+    paths-ignore: ['**.md', LICENSE, .editorconfig]
 
 concurrency:
   group: ci-${{ github.ref }}
