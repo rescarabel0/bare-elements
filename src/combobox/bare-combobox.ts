@@ -1,16 +1,12 @@
 import { ReactiveElement, type PropertyValues } from 'lit';
-import type { BareListbox } from './bare-listbox.js';
-import { OPTION_UPDATE_EVENT, type BareOption } from './bare-option.js';
+import type { BareChangeDetail } from '../listbox/events.js';
+import type { BareListbox } from '../listbox/bare-listbox.js';
+import { OPTION_UPDATE_EVENT, type BareOption } from '../listbox/bare-option.js';
 import { uniqueId } from '../internal/id.js';
 
 export type ComboboxFilter = 'contains' | 'starts-with' | 'none';
 
-export interface BareChangeDetail {
-  /** The new value, or `''` when the selection was cleared. */
-  value: string;
-  /** The chosen option, or `null` when the selection was cleared. */
-  option: BareOption | null;
-}
+export type { BareChangeDetail };
 
 /**
  * An editable combobox with a filtered popup list, following the WAI-ARIA
@@ -441,8 +437,5 @@ export class BareCombobox extends ReactiveElement {
 declare global {
   interface HTMLElementTagNameMap {
     'bare-combobox': BareCombobox;
-  }
-  interface HTMLElementEventMap {
-    'bare-change': CustomEvent<BareChangeDetail>;
   }
 }

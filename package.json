@@ -34,6 +34,7 @@
   ],
   "sideEffects": [
     "./dist/index.js",
+    "./dist/listbox/index.js",
     "./dist/combobox/index.js"
   ],
   "engines": {

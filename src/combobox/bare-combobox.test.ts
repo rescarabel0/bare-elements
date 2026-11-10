@@ -2,7 +2,7 @@ import { expect, fixture, html, oneEvent } from '@open-wc/testing';
 import { sendKeys } from '@web/test-runner-commands';
 import './index.js';
 import type { BareChangeDetail } from './bare-combobox.js';
-import type { BareOption } from './bare-option.js';
+import type { BareOption } from '../listbox/bare-option.js';
 
 // Let queued microtask syncs and Lit updates settle. (rAF does not fire in background tabs.)
 const settle = () => new Promise((r) => setTimeout(r, 0));
